@@ -20,8 +20,17 @@ abstract class LameDb
      * @var int
      */
     protected $_version;
+    /**
+     * @var Transponder[]
+     */
     protected $_transponders = array();
+    /**
+     * @var Service[]
+     */
     protected $_services = array();
+    /**
+     * @var array
+     */
     protected $_mapName = array();
 
     /**
@@ -96,7 +105,7 @@ abstract class LameDb
      *
      * @abstract
      * @param  string|stream $source
-     * @param  boolean       $checkVersion
+     * @param  bool          $checkVersion
      * @return void
      */
     function load($source, $checkVersion = true)
@@ -130,49 +139,99 @@ abstract class LameDb
     {
         $f = fopen($fn, "w");
         foreach ($this->_services as $k => $service) {
-            //var_dump($service);die;
-            fputs($f, "$service->networkId,$service->packageName,$service->name,$service->sid\n");
+            $t = $this->getTransponder($service->getTransponderKey());
+            //var_dump($t);die;
+            $data = array(
+                //$service->networkId,
+                $service->packageName,
+                $service->name,
+                $service->sid,
+                implode(",", array($t->getSatelliteName(), $t->frequency, $t->getPolarizationCode(), $t->getFecStr()))
+            );
+            fputs($f, implode(";", $data)."\n");
         }
         fclose($f);
     }
 
+    /**
+     * @param string $packageName
+     * @param string $serviceName
+     * @return string[]
+     */
     public function getKeyByPackageServiceName($packageName, $serviceName)
     {
-        $mapKey = strtoupper($packageName."#".$serviceName);
-        if (!array_key_exists($mapKey, $this->_mapName)) {
-            echo "not found $mapKey, alternatives ".implode(", ", $this->getSimilar($packageName, $serviceName))."</b><br/>";
-            return false;
-        }
-        return $this->_mapName[$mapKey];
-    }
-
-    public function getSimilar($packageName, $serviceName)
-    {
-        $res = array();
         $packageName = strtoupper($packageName);
         $serviceName = strtoupper($serviceName);
-        foreach ($this->_mapName as $key=>$v) {
-            $add = false;
-            $p = explode("#", $key);
-            if (strstr($p[1], $serviceName)) {
-                $add = true;
-            }
-
-            if ($add) {
-                $res[] = $key;
+        if (array_key_exists($serviceName, $this->_mapName)) {
+            // found based on name
+            $a1 = $this->_mapName[$serviceName];
+            if (count($a1)==1) {
+                // there is only 1 package
+                return current($a1);
+            } else {
+                // check also package name
+                if (array_key_exists($packageName, $a1)) {
+                    return $a1[$packageName];
+                } else {
+                    // package not found, using first package found
+                    return current($a1);
+                }
             }
         }
-        return $res;
+        // not found
+        echo "<b>$serviceName/$packageName:</b> ".$this->getSimilar($serviceName).'<br />';
+        return false;
+    }
+
+    public function getSimilar($serviceName)
+    {
+        $res = array();
+        $sound = soundex($serviceName);
+        foreach ($this->_mapName as $serviceName=>$a) {
+            if ($sound==soundex($serviceName)) {
+                foreach ($a as $packageName=>$b)
+                $res[] = "$packageName/$serviceName";
+            }
+        }
+        return implode(",", $res);
     }
 
     public function getKeyByFrequency($freq)
     {
+        // TODO not clear now
+        $freq = strtoupper(trim($freq));
+        foreach ($this->_services as $key=>$service) {
+            $t = $this->getTransponder($service->getTransponderKey());
+            $fkey = implode(",", array($t->getSatelliteName(), $t->frequency, $t->getPolarizationCode(), $t->getFecStr()));
+            if ($fkey==$freq) {
+                return $key;
+            }
+        }
+
+
         return false;
     }
 
     public function getService($key)
     {
-        return $this->_services[$key];
+        if (array_key_exists($key, $this->_services)) {
+            return $this->_services[$key];
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @param string $key
+     * @return Transponder
+     */
+    public function getTransponder($key)
+    {
+        if (array_key_exists($key, $this->_transponders)) {
+            return $this->_transponders[$key];
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -236,11 +295,19 @@ abstract class LameDb
             }
 
             // store mapping to judge service by name
-            $mapKey = strtoupper($service->packageName . "#" . $service->name);
-            if (array_key_exists($mapKey, $this->_mapName)) {
-
+            $name = $service->name;
+            $packageName = $service->packageName;
+            $name = strtoupper($name);
+            $packageName = strtoupper($packageName);
+            if (array_key_exists($name, $this->_mapName)) {
+                if (array_key_exists($packageName, $this->_mapName[$name])) {
+                    $this->_mapName[$name][$packageName][] = $key;
+                } else {
+                    $this->_mapName[$name][$packageName] = array($key);
+                }
+            } else {
+                $this->_mapName[$name] = array($packageName=>array($key));
             }
-            $this->_mapName[$mapKey] = $key;
         }
     }
 
@@ -269,12 +336,12 @@ class LameDb_Exception extends Exception
 class Transponder
 {
     public $namespace;
-    public $sid;
+    public $networkId;
     public $transporterId;
     public $frequency;
     public $symbol_rate;
     public $polarization;
-    public $fec_inner;
+    public $fec;
     public $position;
     public $inversion;
     public $flags;
@@ -283,10 +350,24 @@ class Transponder
     public $rolloff;
     public $pilot;
 
-    public function __construct()
-    {
-
-    }
+    protected $_mapPolarization = array(
+        0=>array('H', 'Horizontal'),
+        1=>array('V', 'Vertical'),
+        2=>array('L', 'Circular Left'),
+        3=>array('R', 'Circular Right'),
+    );
+    protected $_mapFEC = array(
+        0=>'Auto',
+        1=>'1/2',
+        2=>'2/3',
+        3=>'3/4',
+        4=>'5/6',
+        5=>'7/8',
+        6=>'8/9',
+        7=>'3/5',
+        8=>'4/5',
+        9=>'9/10'
+    );
 
     /**
      * Return unique key for transponder
@@ -294,7 +375,25 @@ class Transponder
      */
     public function getKey()
     {
-        return strtoupper($this->namespace . '#' . $this->sid . '#' . $this->transporterId);
+        return strtoupper($this->namespace . ':' . $this->transporterId . ':' . $this->networkId);
+    }
+
+    public function getPolarizationCode()
+    {
+        return $this->_mapPolarization[$this->polarization][0];
+    }
+    public function getPolarizationStr()
+    {
+        return $this->_mapPolarization[$this->polarization][1];
+    }
+    public function getFecStr()
+    {
+        return $this->_mapFEC[$this->fec];
+    }
+    public function getSatelliteName()
+    {
+        // TODO we need to support loading of satellites.xml
+        return $this->position;
     }
 }
 
@@ -316,6 +415,12 @@ class Service
         return strtoupper($this->namespace . '#' . $this->sid . '#' . $this->transporterId);
         //return $this->packageName . "#" . $this->name;
     }
+
+    public function getTransponderKey()
+    {
+//        var_dump($this);
+        return strtoupper($this->namespace . ':' . $this->transporterId . ':' . $this->networkId);
+    }
 }
 
 class LameDb4 extends LameDb
@@ -334,7 +439,8 @@ class LameDb4 extends LameDb
         //
         $t = new Transponder();
         // data from transporter key
-        list($t->namespace, $t->transporterId, $t->sid) = explode(":", $line1);
+        //echo $line1."<br>";
+        list($t->namespace, $t->transporterId, $t->networkId) = explode(":", $line1);
         // other data
         $line2 = trim($line2);
         switch ($line2[0]) {
@@ -347,7 +453,7 @@ class LameDb4 extends LameDb
                     $t->frequency,
                     $t->symbol_rate,
                     $t->polarization,
-                    $t->fec_inner,
+                    $t->fec,
                     $t->position,
                     $t->inversion,
                     $t->flags,
