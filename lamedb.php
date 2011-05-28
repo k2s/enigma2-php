@@ -3,7 +3,7 @@
  * Main class to manipulate lamedb files
  *
  * @throws LameDb_Exception
-  */
+ */
 abstract class LameDb
 {
     /**
@@ -32,7 +32,7 @@ abstract class LameDb
      * @param int $version
      * @return LameDb
      */
-    static function factory($version=null)
+    static function factory($version = null)
     {
         if (is_null($version)) {
             $version = self::DEFAULT_VERSION;
@@ -45,6 +45,7 @@ abstract class LameDb
                 throw new LameDb_Exception("lamedb version '$version' is not unsupported.");
         }
     }
+
     /**
      * Load existing lamedb file and return appropriate lamedb class
      *
@@ -58,9 +59,9 @@ abstract class LameDb
             $source = fopen($source, "r");
         }
         // check header and obtain version info
-        if (false!==($s=trim(fgets($source)))) {
+        if (false !== ($s = trim(fgets($source)))) {
             $version = self::parseVersion($s);
-            if (false===$version) {
+            if (false === $version) {
                 throw new LameDb_Exception("wrong header '$s'");
             }
         } else {
@@ -71,6 +72,7 @@ abstract class LameDb
         $lamedb->load($source, false);
         return $lamedb;
     }
+
     /**
      * Parse first line
      *
@@ -88,6 +90,7 @@ abstract class LameDb
         }
         return $version[1];
     }
+
     /**
      * Load content of lamedb file
      *
@@ -96,21 +99,21 @@ abstract class LameDb
      * @param  boolean       $checkVersion
      * @return void
      */
-    function load($source, $checkVersion=true)
+    function load($source, $checkVersion = true)
     {
         if (is_string($source)) {
             $source = fopen($source, "r");
             // make sure version will be checked
-            $checkVersion=true;
+            $checkVersion = true;
         }
         if ($checkVersion) {
-            if (false!==($s=trim(fgets($source)))) {
+            if (false !== ($s = trim(fgets($source)))) {
                 $version = self::parseVersion($s);
-                if (false===$version) {
+                if (false === $version) {
                     throw new LameDb_Exception("wrong header '$s'");
                 }
                 if (in_array($version, $this->_versionAccepted)) {
-                    throw new LameDb_Exception("you can't load lamedb version '$version' with class ".get_class($this));
+                    throw new LameDb_Exception("you can't load lamedb version '$version' with class " . get_class($this));
                 }
             } else {
                 throw new LameDb_Exception("lamedb file is empty");
@@ -123,17 +126,61 @@ abstract class LameDb
         $this->_loadServices($source);
     }
 
-	public function exportToTxt($fn)
-	{
-		$f = fopen($fn, "w");
-		foreach ($this->_services as $k=>$service) {
+    public function exportToTxt($fn)
+    {
+        $f = fopen($fn, "w");
+        foreach ($this->_services as $k => $service) {
             //var_dump($service);die;
-			fputs($f, "$service->networkId,$service->packageName,$service->name,$service->sid\n");
-		}
-		fclose($f);
+            fputs($f, "$service->networkId,$service->packageName,$service->name,$service->sid\n");
+        }
+        fclose($f);
     }
 
-    public function __construct($version)
+    public function getKeyByPackageServiceName($packageName, $serviceName)
+    {
+        $mapKey = strtoupper($packageName."#".$serviceName);
+        if (!array_key_exists($mapKey, $this->_mapName)) {
+            echo "not found $mapKey, alternatives ".implode(", ", $this->getSimilar($packageName, $serviceName))."</b><br/>";
+            return false;
+        }
+        return $this->_mapName[$mapKey];
+    }
+
+    public function getSimilar($packageName, $serviceName)
+    {
+        $res = array();
+        $packageName = strtoupper($packageName);
+        $serviceName = strtoupper($serviceName);
+        foreach ($this->_mapName as $key=>$v) {
+            $add = false;
+            $p = explode("#", $key);
+            if (strstr($p[1], $serviceName)) {
+                $add = true;
+            }
+
+            if ($add) {
+                $res[] = $key;
+            }
+        }
+        return $res;
+    }
+
+    public function getKeyByFrequency($freq)
+    {
+        return false;
+    }
+
+    public function getService($key)
+    {
+        return $this->_services[$key];
+    }
+
+    /**
+     * Default constructor
+     *
+     * @param int $version
+     */
+    final public function __construct($version)
     {
         $this->_version = $version;
     }
@@ -141,20 +188,20 @@ abstract class LameDb
     protected function _loadTransponders($source)
     {
         // find begin of transponders
-        while (false!==($s=trim(fgets($source)))) {
-            if ($s=="transponders") {
+        while (false !== ($s = trim(fgets($source)))) {
+            if ($s == "transponders") {
                 break;
             }
         }
         // read transponders
-        while (false!==($l1=trim(fgets($source)))) {
-            if ($l1=="end") {
+        while (false !== ($l1 = trim(fgets($source)))) {
+            if ($l1 == "end") {
                 break;
             }
             // TODO maybe we need to loop until '/' found
             $data = trim(fgets($source));
             $slash = trim(fgets($source));
-            if ($slash!='/') {
+            if ($slash != '/') {
                 throw new LameDb_Exception("transponder definition does not end with '/''");
             }
 
@@ -163,17 +210,18 @@ abstract class LameDb
             $this->_transponders[$transponder->getKey()] = $transponder;
         }
     }
+
     protected function _loadServices($source)
     {
         // find begin of service definition
-        while (false!==($s=trim(fgets($source)))) {
-            if ($s=="services") {
+        while (false !== ($s = trim(fgets($source)))) {
+            if ($s == "services") {
                 break;
             }
         }
         // read services
-        while (false!==($l1=trim(fgets($source)))) {
-            if ($l1=="end") {
+        while (false !== ($l1 = trim(fgets($source)))) {
+            if ($l1 == "end") {
                 break;
             }
             $serviceName = trim(fgets($source));
@@ -188,7 +236,7 @@ abstract class LameDb
             }
 
             // store mapping to judge service by name
-            $mapKey = strtoupper($service->packageName."#".$service->name);
+            $mapKey = strtoupper($service->packageName . "#" . $service->name);
             if (array_key_exists($mapKey, $this->_mapName)) {
 
             }
@@ -202,6 +250,7 @@ abstract class LameDb
      * @return Transponder
      */
     abstract protected function _createTransponder($data);
+
     /**
      * @abstract
      * @param  array $data
@@ -209,15 +258,32 @@ abstract class LameDb
      */
     abstract protected function _createService($data);
 }
+
 /**
  * Specialized exception to recognize problems raised in lamedb classes
  */
 class LameDb_Exception extends Exception
 {
 }
+
 class Transponder
 {
-    public function __construct($key, $data)
+    public $namespace;
+    public $sid;
+    public $transporterId;
+    public $frequency;
+    public $symbol_rate;
+    public $polarization;
+    public $fec_inner;
+    public $position;
+    public $inversion;
+    public $flags;
+    public $system;
+    public $modulation;
+    public $rolloff;
+    public $pilot;
+
+    public function __construct()
     {
 
     }
@@ -228,9 +294,10 @@ class Transponder
      */
     public function getKey()
     {
-
+        return strtoupper($this->namespace . '#' . $this->sid . '#' . $this->transporterId);
     }
 }
+
 class Service
 {
     public $myName;
@@ -246,7 +313,7 @@ class Service
     public function getKey()
     {
         // TODO normalize namespace and sid
-        return strtoupper($this->namespace.'#'.$this->sid.'#'.$this->transporterId);
+        return strtoupper($this->namespace . '#' . $this->sid . '#' . $this->transporterId);
         //return $this->packageName . "#" . $this->name;
     }
 }
@@ -265,6 +332,36 @@ class LameDb4 extends LameDb
         list($line1, $line2) = $data;
 
         //
+        $t = new Transponder();
+        // data from transporter key
+        list($t->namespace, $t->transporterId, $t->sid) = explode(":", $line1);
+        // other data
+        $line2 = trim($line2);
+        switch ($line2[0]) {
+            case 's':
+                $a = explode(":", trim(substr($line2,1)));
+                if (count($a)>11) {
+                    throw new LameDb_Exception("too many parameters in transponder data '$line2'");
+                }
+                @list(
+                    $t->frequency,
+                    $t->symbol_rate,
+                    $t->polarization,
+                    $t->fec_inner,
+                    $t->position,
+                    $t->inversion,
+                    $t->flags,
+                    $t->system,
+                    $t->modulation,
+                    $t->rolloff,
+                    $t->pilot
+                    ) = $a;
+                break;
+            default:
+                throw new LameDb_Exception("unknown transponder data line '$line2'");
+        }
+
+        return $t;
     }
 
     protected function _createService($data)
@@ -276,10 +373,11 @@ class LameDb4 extends LameDb
         $packageName = "no-package";
         $l1 = explode(":", trim($l1));
         $l3 = explode(",", trim($l3));
+        // TODO don't know about cacheIDs
         foreach ($l3 as &$v) {
-            if ($v[0]=="p" && $v[1]==":") {
+            if ($v[0] == "p" && $v[1] == ":") {
                 $a = explode(",", $v);
-                $packageName = trim(substr($a[0],2));
+                $packageName = trim(substr($a[0], 2));
                 if (!$packageName) {
                     $packageName = "no-provider";
                 }
