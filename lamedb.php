@@ -116,7 +116,7 @@ abstract class LameDb
             $checkVersion = true;
         }
         if ($checkVersion) {
-            if (false !== ($s = trim(fgets($source)))) {
+            if (false !== ($s = trim($this->_fgets($source)))) {
                 $version = self::parseVersion($s);
                 if (false === $version) {
                     throw new LameDb_Exception("wrong header '$s'");
@@ -160,8 +160,8 @@ abstract class LameDb
      */
     public function getKeyByPackageServiceName($packageName, $serviceName)
     {
-        $packageName = strtoupper($packageName);
-        $serviceName = strtoupper($serviceName);
+        $packageName = mb_strtoupper($packageName);
+        $serviceName = mb_strtoupper($serviceName);
         if (array_key_exists($serviceName, $this->_mapName)) {
             // found based on name
             $a1 = $this->_mapName[$serviceName];
@@ -247,19 +247,19 @@ abstract class LameDb
     protected function _loadTransponders($source)
     {
         // find begin of transponders
-        while (false !== ($s = trim(fgets($source)))) {
+        while (false !== ($s = trim($this->_fgets($source)))) {
             if ($s == "transponders") {
                 break;
             }
         }
         // read transponders
-        while (false !== ($l1 = trim(fgets($source)))) {
+        while (false !== ($l1 = trim($this->_fgets($source)))) {
             if ($l1 == "end") {
                 break;
             }
             // TODO maybe we need to loop until '/' found
-            $data = trim(fgets($source));
-            $slash = trim(fgets($source));
+            $data = trim($this->_fgets($source));
+            $slash = trim($this->_fgets($source));
             if ($slash != '/') {
                 throw new LameDb_Exception("transponder definition does not end with '/''");
             }
@@ -270,21 +270,33 @@ abstract class LameDb
         }
     }
 
+    protected function _fgets($source)
+    {
+        $s = fgets($source);
+        // TODO non-breaking space, this should be improved
+        $s = str_replace(chr(194).chr(134), '', $s);
+        $s = str_replace(chr(194).chr(135), '', $s);
+        return $s;
+    }
+
     protected function _loadServices($source)
     {
         // find begin of service definition
-        while (false !== ($s = trim(fgets($source)))) {
+        while (false !== ($s = trim($this->_fgets($source)))) {
             if ($s == "services") {
                 break;
             }
         }
         // read services
-        while (false !== ($l1 = trim(fgets($source)))) {
+        while (false !== ($l1 = trim($this->_fgets($source)))) {
             if ($l1 == "end") {
                 break;
             }
-            $serviceName = trim(fgets($source));
-            $l3 = fgets($source);
+            $serviceName = trim($this->_fgets($source));
+
+            //echo $serviceName.": ".mb_detect_encoding($serviceName)."<br/>";
+
+            $l3 = $this->_fgets($source);
 
             $service = $this->_createService(array($l1, $serviceName, $l3));
 
