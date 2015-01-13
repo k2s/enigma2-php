@@ -94,7 +94,7 @@ abstract class LameDb
     final static function parseVersion($line)
     {
         $version = array();
-        if (!preg_match("@eDVB services /(\d)/@", $line, $version)) {
+        if (!preg_match("@eDVB services /(\\d)/@", $line, $version)) {
             return false;
         }
         return $version[1];
