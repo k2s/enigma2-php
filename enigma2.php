@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Class to communicate with enigma2 devices using FTP protocol
  *
@@ -13,7 +14,7 @@ class Enigma2Ftp
     protected $_user;
     protected $_passwd;
 
-    public function __construct($host, $user="root", $passwd="")
+    public function __construct($host, $user = "root", $passwd = "")
     {
         $this->_host = $host;
         $this->_user = $user;
@@ -21,11 +22,11 @@ class Enigma2Ftp
 
         // connect FTP
         $this->_ftpStream = ftp_connect($host);
-	    // login to FTP server
-	    $login = ftp_login($this->_ftpStream, $user, $passwd);
-	    if(!$login) {
-    		throw new Exception("FTP not connected");
-    	} else {
+        // login to FTP server
+        $login = ftp_login($this->_ftpStream, $user, $passwd);
+        if (!$login) {
+            throw new Exception("FTP not connected");
+        } else {
             ftp_pasv($this->_ftpStream, true);
         }
     }
@@ -34,11 +35,11 @@ class Enigma2Ftp
     {
         if ($this->_ftpStream) {
             // close FTP connection
-    	    @ftp_close($this->_ftpStream);
+            @ftp_close($this->_ftpStream);
         }
     }
 
-    public function get($fn, $target=null)
+    public function get($fn, $target = null)
     {
         if (is_string($target)) {
             if (!ftp_get($this->_ftpStream, $target, $fn, FTP_ASCII)) {
@@ -71,7 +72,7 @@ class Enigma2Ftp
         // delete existing files
         $files = ftp_nlist($this->_ftpStream, '/etc/enigma2/');
         foreach ($files as $fn) {
-            if (pathinfo($fn, PATHINFO_EXTENSION)=='tv') {
+            if (pathinfo($fn, PATHINFO_EXTENSION) == 'tv') {
                 ftp_delete($this->_ftpStream, $fn);
             }
         }
@@ -79,14 +80,25 @@ class Enigma2Ftp
         // upload new files
         foreach (glob("$folderName/*.tv") as $filename) {
             $fn = pathinfo($filename, PATHINFO_BASENAME);
-            ftp_put($this->_ftpStream, '/etc/enigma2/'.$fn, $filename, FTP_ASCII);
+            ftp_put($this->_ftpStream, '/etc/enigma2/' . $fn, $filename, FTP_ASCII);
+        }
+    }
+
+    public function getBouquets($folderName)
+    {
+        $files = ftp_nlist($this->_ftpStream, '/etc/enigma2/');
+        foreach ($files as $fn) {
+            if (pathinfo($fn, PATHINFO_EXTENSION) == 'tv') {
+                $target = $folderName . DIRECTORY_SEPARATOR . pathinfo($fn, PATHINFO_BASENAME);
+                ftp_get($this->_ftpStream, $target, $fn, FTP_ASCII);
+            }
         }
     }
 
     public function reload()
     {
-	file_get_contents("http://".$this->_host."/web/servicelistreload?mode=2");
-        return true;	
+        file_get_contents("http://" . $this->_host . "/web/servicelistreload?mode=2");
+        return true;
 
         // TODO fallback to enigma2 restart 
         /*require_once "telnet.php";
