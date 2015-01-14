@@ -86,6 +86,7 @@ class Enigma2Ftp
 
     public function getBouquets($folderName)
     {
+        // TODO delete old files
         $files = ftp_nlist($this->_ftpStream, '/etc/enigma2/');
         foreach ($files as $fn) {
             if (pathinfo($fn, PATHINFO_EXTENSION) == 'tv') {

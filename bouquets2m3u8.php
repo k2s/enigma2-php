@@ -2,17 +2,21 @@
 require_once "enigma2.php";
 require_once "lamedb.php";
 
-$host = $argv[1];
-$port = $argv[2];
+$host = $argv[2];
+$port = $argv[3];
 $protocol = "http";
-$ftp = new Enigma2Ftp($host, $argv[3], $argv[4]);
+$playlistFn = $argv[1];
+$ftp = new Enigma2Ftp($host, $argv[4], $argv[5]);
 
 $fld = "/tmp/xxx/";
-$fldOut = "/tmp/xxx/m3u/";
+$fldOut = dirname($playlistFn)."/playlists/";
+
+// prepare target
+@mkdir($fldOut, 0777, true);
+// TODO remove old files
 
 // download files from enigma2
 @mkdir($fld, 0777, true);
-@mkdir($fldOut, 0777, true);
 $ftp->getBouquets($fld);
 $ftp->get("/etc/enigma2/lamedb", $fld . "lamedb");
 
@@ -20,6 +24,7 @@ $ftp->get("/etc/enigma2/lamedb", $fld . "lamedb");
 $lamedb = LameDb::factoryFromFile($fld . "lamedb");
 
 // loop over all bouquets
+$favFiles = array();
 foreach (glob($fld . "user*.tv") as $fn) {
     echo "processing $fn" . PHP_EOL;
     $services = file($fn);
@@ -59,8 +64,10 @@ foreach (glob($fld . "user*.tv") as $fn) {
             // not tv
             continue;
         }
+        // TODO detect picon
+        $icon = "";
 
-        $lines[] = "#EXTINF:-1,$name";
+        $lines[] = "#EXTINF:0,$name" . ($icon ? ",:$icon,0" : ",,0");
         $lines[] = "$protocol://$host:$port/$service";
     }
 
@@ -69,6 +76,14 @@ foreach (glob($fld . "user*.tv") as $fn) {
     }
     $outFn = $fldOut . "{$host}-$m[1].m3u8";
     file_put_contents($outFn, "#EXTM3U\n#EXTVLCOPT--http-reconnect=true\n" . implode("\n", $lines));
+    $favFiles[$m[1]] = $outFn;
 }
 
 // write supper playlist
+$f = fopen($playlistFn, "w");
+fputs($f, "#EXTM3U\n");
+foreach ($favFiles as $name => $favFn) {
+    fputs($f, "#EXTINF:0,$name,,1\n");
+    fputs($f, $favFn . "\n");
+}
+fclose($f);
