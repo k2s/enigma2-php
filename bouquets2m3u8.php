@@ -6,10 +6,11 @@ $host = $argv[2];
 $port = $argv[3];
 $protocol = "http";
 $playlistFn = $argv[1];
+$onlySD = true;
 $ftp = new Enigma2Ftp($host, $argv[4], $argv[5]);
 
 $fld = "/tmp/xxx/";
-$fldOut = dirname($playlistFn)."/playlists/";
+$fldOut = dirname($playlistFn) . "/playlists/";
 
 // prepare target
 @mkdir($fldOut, 0777, true);
@@ -40,13 +41,34 @@ foreach (glob($fld . "user*.tv") as $fn) {
         // find channel in lamedb
         // TODO move this parsing to lamedb
         $data = explode(":", $service);
+
+        if ($data[1] == 134) {
+            // read first alternative
+            if (!preg_match("/FROM BOUQUET \"([^\"]*)\" ORDER BY bouquet/", $data[10], $m)) {
+                echo "wrong alternative file reference $data[10]\n";
+                continue;
+            }
+            $alt = file($fld . $m[1]);
+            $service = $alt[1];
+            if (!preg_match("/^#SERVICE (.*)$/", $service, $m)) {
+                // description, could be handled better
+                echo "wrong alternative file $data[10]\n";
+                continue;
+            }
+            $service = $m[1];
+            // find channel in lamedb
+            $data = explode(":", $service);
+        }
+
+        // decode
         $a = sprintf("%08s", strtoupper($data[6]));
         $b = sprintf("%04s", strtoupper($data[3]));
         $c = sprintf("%04s", strtoupper($data[4]));
-        if ($data[1] & 64 || $data[1] == 134) {
+        if ($data[1] & 64) {
             // separator
             continue;
         }
+
         $r = $lamedb->getService("$a#$b#$c");
         if (!$r) {
             echo "channel '$a#$b#$c' not found" . PHP_EOL;
@@ -54,7 +76,7 @@ foreach (glob($fld . "user*.tv") as $fn) {
         }
         $name = $r->name;
         $t = $lamedb->getTransponder($r->getTransponderKey());
-        if (!is_null($t->system)) {
+        if ($onlySD && !is_null($t->system)) {
             // not SD
             continue;
         }
